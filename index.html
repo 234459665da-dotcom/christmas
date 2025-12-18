@@ -26,6 +26,10 @@
       
       /* Custom Scrollbar for hidden overflows */
       ::-webkit-scrollbar { width: 0px; background: transparent; }
+      
+      /* Fade in animation for root */
+      #root { opacity: 0; animation: fadeIn 1s forwards; }
+      @keyframes fadeIn { to { opacity: 1; } }
     </style>
   <script type="importmap">
 {
@@ -38,14 +42,23 @@
     "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "three/": "https://esm.sh/three@^0.182.0/"
+    "three/": "https://esm.sh/three@^0.182.0/",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+    <div id="root">
+        <!-- Fallback content if JS fails to load -->
+        <div style="height: 100vh; display: flex; align-items: center; justify-content: center; color: #ffbf00; font-family: serif;">
+            LOADING EXPERIENCE...
+        </div>
+    </div>
+    <!-- CHANGED: Use relative path ./index.tsx instead of absolute /index.tsx -->
+    <script type="module" src="./index.tsx"></script>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>

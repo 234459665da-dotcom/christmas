@@ -203,6 +203,7 @@ type GestureType = 'NONE' | 'FIST' | 'OPEN_ROTATE' | 'PINCH_ZOOM' | 'L_SHAPE_PHO
 const App: React.FC = () => {
   const [appMode, setAppMode] = useState<AppMode>(AppMode.LOADING);
   const [loadingText, setLoadingText] = useState("ILLUMINATING");
+  const [loadingProgress, setLoadingProgress] = useState(0); // Progress state 0-100
   const [debugInfo, setDebugInfo] = useState("");
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
@@ -743,11 +744,26 @@ const App: React.FC = () => {
     };
 
     const setupVision = async () => {
+      // SAFETY TIMEOUT: Force app to start if camera/model is too slow
+      const safetyTimeout = setTimeout(() => {
+          if (modeRef.current === AppMode.LOADING) {
+              console.warn("Loading timed out. Forcing Mouse Mode.");
+              setLoadingText("MOUSE ONLY");
+              setAppMode(AppMode.TREE);
+              modeRef.current = AppMode.TREE;
+          }
+      }, 15000); // Increased to 15 seconds for slower connections
+
       try {
-        setLoadingText("LIGHTING CANDLES");
+        setLoadingText("INITIALIZING ENGINE");
+        setLoadingProgress(5);
+
         const vision = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
         );
+        setLoadingProgress(40);
+
+        setLoadingText("LOADING AI MODEL");
         handLandmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
@@ -756,11 +772,13 @@ const App: React.FC = () => {
           runningMode: "VIDEO",
           numHands: 1
         });
+        setLoadingProgress(75);
 
         // Use the existing video element from Ref
         const v = videoRef.current;
         if (!v) throw new Error("Video element not found");
 
+        setLoadingText("STARTING CAMERA");
         // Optimized constraints for Tablets (Magic Pad 2) / Mobile
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { 
@@ -769,12 +787,19 @@ const App: React.FC = () => {
                 height: { ideal: 480 } 
             } 
         });
+        setLoadingProgress(90);
+
         v.srcObject = stream;
         
         await new Promise<void>((resolve) => {
-            v.onloadeddata = () => { v.play().catch(console.error); resolve(); }
+            v.onloadeddata = () => { 
+                setLoadingProgress(100);
+                v.play().catch(console.error); 
+                setTimeout(resolve, 500); // Visual delay for 100%
+            }
         });
-
+        
+        clearTimeout(safetyTimeout); // Clear timeout if successful
         setLoadingText("READY");
         setAppMode(AppMode.TREE); 
         modeRef.current = AppMode.TREE;
@@ -868,9 +893,18 @@ const App: React.FC = () => {
         };
         visionLoop();
 
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
+        // Show the actual error on screen to help debug on tablet
+        setDebugInfo(`ERROR: ${err.name || err.message || 'UNKNOWN'}`);
         setLoadingText("MOUSE ONLY");
+        // Ensure app still starts even if camera fails
+        setTimeout(() => {
+             if (modeRef.current === AppMode.LOADING) {
+                 setAppMode(AppMode.TREE);
+                 modeRef.current = AppMode.TREE;
+             }
+        }, 2000);
       }
     };
     setupVision();
@@ -920,7 +954,20 @@ const App: React.FC = () => {
       {appMode === AppMode.LOADING && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/95 text-[#ffbf00]">
           <div className="w-16 h-16 border-4 border-t-transparent border-[#ffbf00] rounded-full animate-spin mb-6 shadow-[0_0_20px_#ffbf00]"></div>
-          <h2 className="font-cinzel text-xl tracking-[0.3em] animate-pulse text-center px-4">{loadingText}</h2>
+          
+          <h2 className="font-cinzel text-xl tracking-[0.3em] animate-pulse text-center px-4 mb-2">{loadingText}</h2>
+          
+          {/* Progress Bar */}
+          <div className="w-64 h-2 bg-[#1a1a1a] rounded-full overflow-hidden border border-[#ffbf00]/30 relative mt-4">
+              <div 
+                className="h-full bg-[#ffbf00] shadow-[0_0_15px_#ffbf00] transition-all duration-300 ease-out"
+                style={{ width: `${loadingProgress}%` }}
+              />
+          </div>
+          <p className="font-mono text-[10px] text-[#ffbf00]/60 mt-2 tracking-widest">{loadingProgress}%</p>
+
+          {/* Debug info shown during loading if error occurs */}
+          <p className="text-red-500 text-xs mt-4">{debugInfo}</p>
         </div>
       )}
 
